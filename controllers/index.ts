@@ -4,3 +4,4 @@ export * from './VendorControllers';
 
 export * from './ShoppingController';
 
+export * from './CustomerControllers'
