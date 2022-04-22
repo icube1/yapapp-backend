@@ -3,7 +3,7 @@ import express, {
   Response,
   NextFunction
 } from 'express';
-import { CreateCustomerInputs, UserLoginInputs, EditCustomerProfileInputs } from '../dto/Customer.dto'
+import { CreateCustomerInputs, UserLoginInputs, EditCustomerProfileInputs, OrderInputs } from '../dto/Customer.dto'
 import {plainToClass, plainToInstance} from 'class-transformer';
 import { validate } from 'class-validator';
 import {
@@ -15,6 +15,8 @@ import {
   ValidatePassword
 } from '../utility';
 import { Customer } from '../models/Customer';
+import { Food } from '../models';
+import { Order } from '../models/Order';
 
 
 //signup -- done
@@ -66,14 +68,15 @@ export const CustomerSugnup = async (req: Request, res: Response, next: NextFunc
     firstName: '',
     lastName: '',
     adress: '',
-    verified: false,
+    verified: true,
     lat: 0,
-    lng: 0
+    lng: 0,
+    orders: []
   })
 
   if (result) {
     //send OTP
-    await onRequestOTP(otp, phone)
+    //await onRequestOTP(otp, phone)
 
     //generate signature
     const signature = GenerateSignature({
@@ -184,7 +187,7 @@ export const RequestOtp = async (req: Request, res: Response, next: NextFunction
   return res.status(400).json({ message: 'ошибка с запросом одноразового пароля' })
 }
 
-//get profile
+//get profile -- done
 export const GetCustomerProfile = async (req: Request, res: Response, next: NextFunction) => {
 
   const customer = req.user;
@@ -201,7 +204,7 @@ export const GetCustomerProfile = async (req: Request, res: Response, next: Next
 
 }
 
-//edit profile --
+//edit profile -- done
 export const EditCustomerProfile = async (req: Request, res: Response, next: NextFunction) => {
 
   const customer = req.user;
@@ -233,6 +236,84 @@ export const EditCustomerProfile = async (req: Request, res: Response, next: Nex
       return res.status(200).json(result)
     }
   }
+}
 
+export const CreateOrder = async (req: Request, res: Response, next: NextFunction) => {
+  //TODO
+  //получить логин покупателя
+  const customer = req.user;
+  if(customer) {
+
+    //создать id заказа
+    const orderId = `${Math.floor(Math.random() * 899999) + 1000}`;
+
+    const profile = await Customer.findById(customer._id);
+
+    //Получить товар из запроса [{id: xx, unit: xx}]
+    const cart = <[OrderInputs]>req.body //    [{id: xx, unit: xx}]
+
+    let cartItems = Array();
+    let netAmount = 0.0;
+
+    //посчитать стоимость
+    const foods = await Food.find()
+    .where('_id')
+    .in(cart.map(item => item._id))
+    .exec();
+
+    foods.map(food => {
+      cart.map(({_id, unit}) => {
+        if(food._id == _id) {
+          netAmount += (food.price * unit);
+          cartItems.push({ food, unit })
+        }
+      })
+    })
+
+    //Создать заказ с описанием
+    if(cartItems) {
+      const currentOrder = await Order.create({
+        orderID: orderId,
+        items: cartItems,
+        totalAmount: netAmount,
+        orderDate: new Date(),
+        paidThrough: 'COD',
+        paymentResponse: '',
+        orderStatus: 'Waiting'
+      })
+
+      //добавить заказ в аккаунт
+      if(currentOrder) {
+        profile.orders.push(currentOrder);
+        const profileResponse = await profile.save();
+
+        return res.status(200).json(currentOrder);
+      }
+    }
+  }
+  return res.status(400).json({ message: 'Ошибка с созданием заказа' })
+}
+
+export const GetOrders = async (req: Request, res: Response, next: NextFunction) => {
+  const customer = req.user;
+
+  if(customer) {
+    const profile = await (await Customer.findById(customer._id)).populate("orders");
+
+    if(profile) {
+      return res.status(200).json(profile.orders);
+    }
+  }
+}
+
+export const GetOrderByID = async (req: Request, res: Response, next: NextFunction) => {
+
+  const orderID = req.params.id;
+
+  if(orderID) {
+    const order = await Order.findById(orderID).populate('items.food');
+
+    res.status(200).json(order)
+  }
 
 }
