@@ -206,11 +206,11 @@ export const GetOrderDetails = async (req: Request,res: Response, next: NextFunc
 }
 export const ProcessOrder = async (req: Request,res: Response, next: NextFunction) => {
 
-  const orderID = req.params.id;
+  const orderId = req.params.id;
   const { status, remarks, time } = req.body; // принято // отклонено // в процессе //  готово
 
-  if(orderID) {
-    const order = await Order.findById(orderID).populate('food');
+  if(orderId) {
+    const order = await Order.findById(orderId);
 
     order.orderStatus = status;
     order.remarks = remarks;
@@ -223,7 +223,7 @@ export const ProcessOrder = async (req: Request,res: Response, next: NextFunctio
     if(orderResult !== null) {
       return res.status(200).json(orderResult);
     }
-    return res.json({ "message": "Не удаётся сформировать заказ" })
+    return res.json({ "message": "Не удаётся обработать заказ" })
 
   }
 }
