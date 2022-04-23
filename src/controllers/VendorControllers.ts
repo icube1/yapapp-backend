@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { Multer } from "multer";
 import { CreateFoodInputs, EditVendorInputs, VendorLoginInputs } from "../dto";
 import { Food } from "../models";
+import { Order } from "../models/Order";
 import { GenerateSignature, ValidatePassword } from "../utility";
 import { FindVendor } from "./AdminControllers";
 
@@ -170,4 +171,59 @@ export const GetFoods = async (req: Request,res: Response, next: NextFunction) =
 
     }
   return res.json({message: "Food information has not been found"});
+}
+
+//orders
+export const GetCurrentOrders = async (req: Request,res: Response, next: NextFunction) => {
+
+  const user = req.user;
+
+  if(user) {
+
+    const orders = await Order.find({ vendorID: user._id }).populate('items.food');
+
+    if(orders != null) {
+      return res.status(200).json(orders);
+
+    }
+  }
+  return res.json({ "message": "Заказ не найден" })
+}
+
+export const GetOrderDetails = async (req: Request,res: Response, next: NextFunction) => {
+
+  const orderID = req.params.id;
+  if(orderID) {
+    const order = await Order.findById(orderID).populate('items.food');
+
+    if(order != null) {
+      return res.status(200).json(order);
+
+    }
+  }
+  return res.json({ "message": "Заказ не найден" })
+
+}
+export const ProcessOrder = async (req: Request,res: Response, next: NextFunction) => {
+
+  const orderID = req.params.id;
+  const { status, remarks, time } = req.body; // принято // отклонено // в процессе //  готово
+
+  if(orderID) {
+    const order = await Order.findById(orderID).populate('food');
+
+    order.orderStatus = status;
+    order.remarks = remarks;
+
+    if(time) {
+      order.readyTime = time;
+    }
+
+    const orderResult = await order.save();
+    if(orderResult !== null) {
+      return res.status(200).json(orderResult);
+    }
+    return res.json({ "message": "Не удаётся сформировать заказ" })
+
+  }
 }

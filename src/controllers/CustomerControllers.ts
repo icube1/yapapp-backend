@@ -131,7 +131,7 @@ export const CustomerLogin = async (req: Request, res: Response, next: NextFunct
   return res.status(404).json({ message: 'Ошибка с входом в систему' })
 }
 
-//не работает twillio, переделать через nodemailer по email
+//Верификация пользователя -------- не работает twillio, переделать через nodemailer по email
 export const CustomerVerify = async (req: Request, res: Response, next: NextFunction) => {
   const { otp } = req.body;
   const customer = req.user;
@@ -238,6 +238,7 @@ export const EditCustomerProfile = async (req: Request, res: Response, next: Nex
   }
 }
 
+// --------------------- Заказ ------------------------- //
 export const CreateOrder = async (req: Request, res: Response, next: NextFunction) => {
   //TODO
   //получить логин покупателя
@@ -255,6 +256,8 @@ export const CreateOrder = async (req: Request, res: Response, next: NextFunctio
     let cartItems = Array();
     let netAmount = 0.0;
 
+    let vendorID;
+
     //посчитать стоимость
     const foods = await Food.find()
     .where('_id')
@@ -264,8 +267,9 @@ export const CreateOrder = async (req: Request, res: Response, next: NextFunctio
     foods.map(food => {
       cart.map(({_id, unit}) => {
         if(food._id == _id) {
+          vendorID = food.vendorID;
           netAmount += (food.price * unit);
-          cartItems.push({ food, unit })
+          cartItems.push({ food, unit: unit })
         }
       })
     })
@@ -274,20 +278,28 @@ export const CreateOrder = async (req: Request, res: Response, next: NextFunctio
     if(cartItems) {
       const currentOrder = await Order.create({
         orderID: orderId,
+        vendorID: vendorID,
         items: cartItems,
         totalAmount: netAmount,
         orderDate: new Date(),
         paidThrough: 'COD',
         paymentResponse: '',
-        orderStatus: 'Waiting'
+        orderStatus: 'Waiting',
+        remarks: '',
+        deliveryID: '',
+        appliedOffers: false,
+        offerID: null,
+        readyTime: 45
+
       })
 
       //добавить заказ в аккаунт
       if(currentOrder) {
+        profile.cart = [] as any;
         profile.orders.push(currentOrder);
         const profileResponse = await profile.save();
 
-        return res.status(200).json(currentOrder);
+        return res.status(200).json(profileResponse);
       }
     }
   }
@@ -315,5 +327,87 @@ export const GetOrderByID = async (req: Request, res: Response, next: NextFuncti
 
     res.status(200).json(order)
   }
+
+}
+
+
+// ---------------------  Корзина  ----------------------------//
+
+
+export const AddToCart = async (req: Request, res: Response, next: NextFunction) => {
+  const customer = req.user;
+
+  if(customer) {
+    const profile = await Customer.findById(customer._id).populate('cart.food');
+    let cartItems = Array();
+
+    const { _id, unit } = <OrderInputs>req.body;
+
+    const food = await Food.findById(_id);
+
+
+    if(food) {
+      if(profile != null) {
+        cartItems = profile.cart;
+
+        //проверить наличие предметов в корзине
+        if(cartItems.length > 0 ) {
+          let existFoodItem = cartItems.filter((item) => item.food._id.toString() === _id);
+
+          //проверить кол-во каждого предмета и обновить
+          if(existFoodItem.length > 0) {
+            const index = cartItems.indexOf(existFoodItem[0]);
+            if(unit > 0) {
+              cartItems[index] = { food, unit }
+            }else{
+              cartItems.splice(index, 1);
+            }
+
+          }else{
+            cartItems.push({ food, unit })
+          }
+
+        }else{
+          //добавить новый предмет
+          cartItems.push({ food, unit });
+        }
+        if(cartItems) {
+          profile.cart = cartItems as any;
+          const cartResult = await profile.save();
+          return res.status(200).json(cartResult.cart);
+        }
+      }
+    }
+  }
+  return res.status(400).json({ message: 'Не удалось добавить в корзину' })
+}
+
+
+export const GetCart = async (req: Request, res: Response, next: NextFunction) => {
+  const customer = req.user;
+  if(customer) {
+    const profile = await Customer.findById(customer._id).populate('cart.food');
+    if(profile) {
+      return res.status(200).json(profile.cart)
+    }
+
+  }
+  return res.status(400).json({ message: 'Корзина пока пуста' })
+
+}
+
+
+export const DeleteCart = async (req: Request, res: Response, next: NextFunction) => {
+  const customer = req.user;
+  if(customer) {
+    const profile = await Customer.findById(customer._id).populate('cart.food');
+    if(profile != null) {
+      profile.cart = [] as any;
+      const cartResult = await profile.save();
+
+      return res.status(200).json(cartResult)
+    }
+  }
+  return res.status(400).json({ message: 'Корзина уже пуста' })
 
 }
