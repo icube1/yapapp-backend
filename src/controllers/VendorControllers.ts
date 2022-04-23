@@ -180,7 +180,7 @@ export const GetCurrentOrders = async (req: Request,res: Response, next: NextFun
 
   if(user) {
 
-    const orders = await Order.find({ vendorID: user._id }).populate('items.food');
+    const orders = await Order.find({ vendorId: user._id }).populate('items.food');
 
     if(orders != null) {
       return res.status(200).json(orders);
