@@ -36,9 +36,39 @@ export interface CustomerPayload {
   verified: boolean;
 }
 
-
-export class OrderInputs {
+export class CartItems {
   _id: string;
   unit: number;
 }
+
+export class OrderInputs {
+  txnId: string;
+  amount: string;
+  items: [CartItems]
+}
+
+export class CreateDeliveryUserInputs {
+  @IsEmail()
+  email: string;
+
+  @Length(7, 12)
+  phone: string;
+
+  @Length(6, 12)
+  password: string;
+
+  @Length(2, 12)
+  firstName: string;
+
+  @Length(2, 12)
+  lastName: string;
+
+  @Length(6, 24)
+  adress: string;
+
+  @Length(4, 12)
+  pincode: string;
+
+}
+
 

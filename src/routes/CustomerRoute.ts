@@ -1,5 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express'
-import { AddToCart, CreateOrder, CustomerLogin, CustomerSugnup, CustomerVerify, DeleteCart, EditCustomerProfile, GetCart, GetCustomerProfile, GetOrderByID, GetOrders, RequestOtp } from '../controllers';
+import { AddToCart, CreateOrder, CreatePayment, CustomerLogin, CustomerSugnup, CustomerVerify, DeleteCart, EditCustomerProfile, GetCart, GetCustomerProfile, GetOrderByID, GetOrders, RequestOtp, VerifyOffer } from '../controllers';
 import { Authenticate } from '../middlewares';
 
 const router = express.Router();
@@ -35,7 +35,11 @@ router.post('/cart', AddToCart);
 router.get('/cart', GetCart);
 router.delete('/cart', DeleteCart);
 
+//apply offers
+router.get('/offer/verify/:id', VerifyOffer)
+
 //payment
+router.post('/create-payment', CreatePayment)
 
 //order
 router.post('/create-order', CreateOrder);

@@ -1,5 +1,5 @@
 import express, {Request, Response, NextFunction} from 'express';
-import { GetFoodAvailability, GetFoodsIn30Min, GetTopRestaurants, RestaurantById, SearchFoods } from '../controllers';
+import { GetAvailableOffers, GetFoodAvailability, GetFoodsIn30Min, GetTopRestaurants, RestaurantById, SearchFoods } from '../controllers';
 
 const router = express.Router();
 
@@ -14,6 +14,9 @@ router.get('/foods-in-30-min/:pincode', GetFoodsIn30Min)
 
 //поиск еды
 router.get('/search/:pincode', SearchFoods)
+
+//Найти скидки
+router.get('/offers/:pincode', GetAvailableOffers)
 
 //поиск ресторана
 router.get('/restaurant/:id', RestaurantById)

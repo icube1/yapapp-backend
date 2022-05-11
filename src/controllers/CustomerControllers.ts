@@ -3,7 +3,7 @@ import express, {
   Response,
   NextFunction
 } from 'express';
-import { CreateCustomerInputs, UserLoginInputs, EditCustomerProfileInputs, OrderInputs } from '../dto/Customer.dto'
+import { CreateCustomerInputs, UserLoginInputs, EditCustomerProfileInputs, OrderInputs, CartItems } from '../dto/Customer.dto'
 import {plainToClass, plainToInstance} from 'class-transformer';
 import { validate } from 'class-validator';
 import {
@@ -15,7 +15,7 @@ import {
   ValidatePassword
 } from '../utility';
 import { Customer } from '../models/Customer';
-import { Food } from '../models';
+import { DeliveryUser, Food, Offer, Transaction, Vendor } from '../models';
 import { Order } from '../models/Order';
 
 
@@ -238,11 +238,98 @@ export const EditCustomerProfile = async (req: Request, res: Response, next: Nex
   }
 }
 
-// --------------------- Заказ ------------------------- //
-export const CreateOrder = async (req: Request, res: Response, next: NextFunction) => {
-  //TODO
-  //получить логин покупателя
+
+// --------------------- создать оплату ------------------------- //
+export const CreatePayment = async (req: Request, res: Response, next: NextFunction) => {
+
   const customer = req.user;
+  const { amount, paymentMode, offerId } = req.body;
+  let payableAmount = Number(amount);
+
+  if(offerId) {
+    const appliedOffer = await Offer.findById(offerId);
+
+    if(appliedOffer && appliedOffer.isActive) {
+      payableAmount = (payableAmount - appliedOffer.offerAmount)
+    }
+  }
+
+  //perform payment gateway charge api call
+
+  //после оплаты - ответ об успешной/неуспешной операции
+
+  //create record on transaction
+  const transaction = await Transaction.create({
+    customer: customer._id,
+    vendorId: '',
+    orderId: '',
+    orderValue: payableAmount,
+    offerUsed: offerId || 'NA',
+    status: 'OPEN',
+    paymentMode: paymentMode,
+    paymentResponse: 'Оплата при получении'
+  })
+
+  //return transaction id
+
+  return res.status(200).json(transaction)
+}
+
+// --------------------- Уведомление о доставке ------------------------- //
+const assignOrderForDelivery = async ( orderId:string, vendorId: string ) => {
+//TODO
+  // найти продавца
+  const vendor = await Vendor.findById(vendorId);
+
+  if(vendor) {
+    const areaCode = vendor.pincode;
+    const vendorLat = vendor.lat;
+    const vendorLng = vendor.lng;
+    //найти доступного доставщика
+    const deliveryPerson = await DeliveryUser.find({ pincode: areaCode, verified: true, isAvailable: true });
+    if(deliveryPerson) {
+      //найти ближайшего доставщика
+
+      const currentOrder = await Order.findById(orderId);
+
+      if(currentOrder) {
+        //обновить deliveryId
+        //currentOrder.deliveryId = //
+        await currentOrder.save();
+
+        //уведомить продавца о новом заказе через firebase пуш-уведомление
+      }
+    }
+
+  }
+
+}
+
+// --------------------- Заказ ------------------------- //
+
+const validateTransaction = async (txnId: string) => {
+  const currentTransaction = await Transaction.findById(txnId);
+  if(currentTransaction && currentTransaction.status.toLowerCase() !== "failed") {
+    return { status: true, currentTransaction }
+  }
+  return { status: false, currentTransaction }
+
+}
+
+export const CreateOrder = async (req: Request, res: Response, next: NextFunction) => {
+
+  const customer = req.user;
+
+  const { txnId, amount, items } = <OrderInputs>req.body;
+
+  //validate transaction
+  const { status, currentTransaction } = await validateTransaction(txnId);
+
+  if(!status) {
+    return res.status(404).json({ message: 'Ошибка с созданием заказа' })
+  }
+
+
   if(customer) {
 
     //создать id заказа
@@ -251,7 +338,6 @@ export const CreateOrder = async (req: Request, res: Response, next: NextFunctio
     const profile = await Customer.findById(customer._id);
 
     //Получить товар из запроса [{id: xx, unit: xx}]
-    const cart = <[OrderInputs]>req.body //    [{id: xx, unit: xx}]
 
     let cartItems = Array();
     let netAmount = 0.0;
@@ -261,11 +347,11 @@ export const CreateOrder = async (req: Request, res: Response, next: NextFunctio
     //посчитать стоимость
     const foods = await Food.find()
     .where('_id')
-    .in(cart.map(item => item._id))
+    .in(items.map(item => item._id))
     .exec();
 
     foods.map(food => {
-      cart.map(({_id, unit}) => {
+      items.map(({_id, unit}) => {
         if(food._id == _id) {
           vendorID = food.vendorID;
           netAmount += (food.price * unit);
@@ -281,26 +367,29 @@ export const CreateOrder = async (req: Request, res: Response, next: NextFunctio
         vendorID: vendorID,
         items: cartItems,
         totalAmount: netAmount,
+        paidAmount: amount,
         orderDate: new Date(),
-        paidThrough: 'COD',
-        paymentResponse: '',
         orderStatus: 'Waiting',
         remarks: '',
         deliveryID: '',
-        appliedOffers: false,
-        offerID: null,
         readyTime: 45
 
       })
 
       //добавить заказ в аккаунт
-      if(currentOrder) {
-        profile.cart = [] as any;
-        profile.orders.push(currentOrder);
-        const profileResponse = await profile.save();
+      profile.cart = [] as any;
+      profile.orders.push(currentOrder);
 
-        return res.status(200).json(profileResponse);
-      }
+      currentTransaction.status = 'CONFIRMED';
+      currentTransaction.vendorId = vendorID;
+      currentTransaction.orderId = orderId;
+      await currentTransaction.save();
+
+      assignOrderForDelivery(currentOrder._id, vendorID);
+
+      const profileSaveResponse = await profile.save();
+
+       return res.status(200).json(profileSaveResponse);
     }
   }
   return res.status(400).json({ message: 'Ошибка с созданием заказа' })
@@ -341,7 +430,7 @@ export const AddToCart = async (req: Request, res: Response, next: NextFunction)
     const profile = await Customer.findById(customer._id).populate('cart.food');
     let cartItems = Array();
 
-    const { _id, unit } = <OrderInputs>req.body;
+    const { _id, unit } = <CartItems>req.body;
 
     const food = await Food.findById(_id);
 
@@ -411,3 +500,27 @@ export const DeleteCart = async (req: Request, res: Response, next: NextFunction
   return res.status(400).json({ message: 'Корзина уже пуста' })
 
 }
+
+export const VerifyOffer = async (req: Request, res: Response, next: NextFunction) => {
+
+  const offerId = req.params.id;
+  const customer = req.user;
+
+  if(customer) {
+    const appliedOffer = await Offer.findById(offerId);
+
+    if( appliedOffer.promoType === "USER" ) {
+
+      //промокод уже использован
+
+    }else{
+      if( appliedOffer.isActive ){
+        return res.status(200).json({ message: 'Скидка доступна', offer: appliedOffer })
+      }
+    }
+  }
+  return res.status(400).json({ message: 'Скидка недоступна' })
+}
+
+
+
