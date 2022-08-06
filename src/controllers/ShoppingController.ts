@@ -11,7 +11,7 @@ export const GetFoodAvailability = async (req: Request, res: Response, next: Nex
   if( result.length > 0) {
   return res.status(200).json(result)
   }
-  return res.status(400).json({ message: 'Data not found' })
+  return res.status(400).json({ message: 'Data not found' })  
 
 
 }
