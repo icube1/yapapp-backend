@@ -1,24 +1,34 @@
 import express, {Request, Response, NextFunction} from 'express';
-import { FoodDoc, Offer, Vendor } from '../models';
+import { FoodDoc, Offer, Vendor, Food } from '../models';
+
+export const GetAllFoods = async (req: Request,res: Response, next: NextFunction) => {
+
+    const foods = await Food.find({ serviceAvailable: true });
+    if (foods !== null) {
+      return res.json(foods);
+    }
+  return res.json({message: "Food information has not been found"});
+}
+
 
 export const GetFoodAvailability = async (req: Request, res: Response, next: NextFunction) => {
 
   const pincode = req.params.pincode;
-  const result = await Vendor.find({ pincode: pincode, serviceAvailable: false })
+  const result = await Vendor.find({ pincode: pincode, serviceAvailable: true })
   .sort([['rating', 'descending']])
   .populate('foods')
 
   if( result.length > 0) {
   return res.status(200).json(result)
   }
-  return res.status(400).json({ message: 'Data not found' })  
+  return res.status(400).json({ message: 'Data not found' })
 
 
 }
 export const GetTopRestaurants = async (req: Request, res: Response, next: NextFunction) => {
 
   const pincode = req.params.pincode;
-  const result = await Vendor.find({ pincode: pincode, serviceAvailable: false })
+  const result = await Vendor.find({ pincode: pincode, serviceAvailable: true })
   .sort([['rating', 'descending']])
   .limit(1)
 
@@ -33,7 +43,7 @@ export const GetTopRestaurants = async (req: Request, res: Response, next: NextF
 }
 export const GetFoodsIn30Min = async (req: Request, res: Response, next: NextFunction) => {
   const pincode = req.params.pincode;
-  const result = await Vendor.find({ pincode: pincode, serviceAvailable: false })
+  const result = await Vendor.find({ pincode: pincode, serviceAvailable: true })
   .populate('foods')
 
   if( result.length > 0) {
@@ -54,7 +64,7 @@ export const GetFoodsIn30Min = async (req: Request, res: Response, next: NextFun
 export const SearchFoods = async (req: Request, res: Response, next: NextFunction) => {
 
   const pincode = req.params.pincode;
-  const result = await Vendor.find({ pincode: pincode, serviceAvailable: false })
+  const result = await Vendor.find({ pincode: pincode, serviceAvailable: true })
   .populate('foods')
 
   if( result.length > 0) {
