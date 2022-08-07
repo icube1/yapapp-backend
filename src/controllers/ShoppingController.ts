@@ -1,10 +1,9 @@
 import express, {Request, Response, NextFunction} from 'express';
 import { FoodDoc, Offer, Vendor, Food } from '../models';
 
-export const GetAllFoods = async (req: Request,res: Response, next: NextFunction) => {
-
+export const GetAllFoods = async (req: Request, res: Response, next: NextFunction) => {
     const foods = await Vendor.find({ serviceAvailable: true })
-    .populate('foods')
+    .populate('food')
     if (foods !== null) {
       return res.json(foods);
     }
