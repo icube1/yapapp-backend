@@ -10,6 +10,7 @@ export const GetAllFoods = async (req: Request,res: Response, next: NextFunction
     }
   return res.json({message: "Food information has not been found"});
 }
+  //fixed
 
 
 export const GetFoodAvailability = async (req: Request, res: Response, next: NextFunction) => {
